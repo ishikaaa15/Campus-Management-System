@@ -1,0 +1,1161 @@
+on the last day of working on the project, we implemented multithreading
+the topics included:
+
+•⁠  ⁠Creating and implementing threads
+•⁠  ⁠Extending the Thread class
+•⁠  ⁠Implementing the Runnable interface
+•⁠  ⁠Thread life cycle
+•⁠  ⁠Thread methods (start(), run(), sleep(), join(), and yield())
+•⁠  ⁠Thread synchronization 
+
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <stdexcept>
+#include <functional>
+#include <thread>
+#include <mutex>
+#include <chrono>
+
+using namespace std;
+
+mutex outputMutex;
+
+class CampusException : public runtime_error {
+public:
+    explicit CampusException(const string& message)
+        : runtime_error(message) {}
+};
+
+class InvalidStudentException : public CampusException {
+public:
+    explicit InvalidStudentException(const string& message)
+        : CampusException(message) {}
+};
+
+class InvalidAttendanceException : public CampusException {
+public:
+    explicit InvalidAttendanceException(const string& message)
+        : CampusException(message) {}
+};
+
+class PaymentException : public CampusException {
+public:
+    explicit PaymentException(const string& message)
+        : CampusException(message) {}
+};
+
+class Finally {
+private:
+    function<void()> action;
+
+public:
+    explicit Finally(function<void()> fn) : action(fn) {}
+
+    Finally(const Finally&) = delete;
+    Finally& operator=(const Finally&) = delete;
+
+    ~Finally() {
+        if (action)
+            action();
+    }
+};
+
+class Payment;
+
+class User {
+
+private:
+    string userId;
+    string name;
+
+protected:
+    string email;
+
+public:
+
+    User(string id, string n, string e) {
+        this->userId = id;
+        this->name = n;
+        this->email = e;
+    }
+
+    string getUserId() const {
+        return userId;
+    }
+
+    string getName() const {
+        return name;
+    }
+
+    void displayUser() const {
+        cout << "ID: " << userId << endl;
+        cout << "Name: " << name << endl;
+        cout << "Email: " << email << endl;
+    }
+
+    virtual void displayRole() const {
+        cout << "Role: General User" << endl;
+    }
+
+    virtual ~User() {}
+};
+
+class Student : virtual public User {
+
+private:
+    string department;
+    int semester;
+
+    static int totalStudents;
+
+public:
+
+    class ContactDetails {
+
+    private:
+        string phone;
+        string address;
+
+    public:
+
+        ContactDetails(string p = "", string a = "") {
+            this->phone = p;
+            this->address = a;
+        }
+
+        void displayContact() const {
+            cout << "Phone: " << phone << endl;
+            cout << "Address: " << address << endl;
+        }
+    };
+
+    ContactDetails contact;
+
+
+    Student(string id,
+            string name,
+            string email,
+            string dept,
+            int sem,
+            string phone = "",
+            string address = "")
+
+        : User(id, name, email),
+          contact(phone, address) {
+
+        if (id.empty() || name.empty() || email.empty()) {
+            throw InvalidStudentException(
+                "Student ID, name, and email cannot be empty."
+            );
+        }
+
+        if (sem < 1 || sem > 8) {
+            throw InvalidStudentException(
+                "Semester must be between 1 and 8."
+            );
+        }
+
+        this->department = dept;
+        this->semester = sem;
+
+        totalStudents++;
+    }
+
+
+    static void displayTotalStudents() {
+        cout << "Total Students Registered: "
+             << totalStudents << endl;
+    }
+
+
+    void displayRole() const override {
+        cout << "Role: Student" << endl;
+    }
+
+
+    friend ostream& operator<<(ostream& out, const Student& s);
+
+    friend istream& operator>>(istream& in, Student& s);
+
+
+    void displayStudent() const {
+
+        cout << "\n--- Student Details ---" << endl;
+
+        cout << "ID: " << getUserId() << endl;
+        cout << "Name: " << getName() << endl;
+        cout << "Email: " << email << endl;
+        cout << "Department: " << department << endl;
+        cout << "Semester: " << semester << endl;
+
+        cout << "\nContact Details:" << endl;
+
+        contact.displayContact();
+    }
+};
+
+
+int Student::totalStudents = 0;
+
+
+// STREAM OPERATOR OVERLOADING
+
+ostream& operator<<(ostream& out, const Student& s) {
+
+    out << "\n--- Student Object Output ---" << endl;
+
+    out << "ID: " << s.getUserId() << endl;
+    out << "Name: " << s.getName() << endl;
+    out << "Email: " << s.email << endl;
+    out << "Department: " << s.department << endl;
+    out << "Semester: " << s.semester << endl;
+
+    return out;
+}
+
+
+istream& operator>>(istream& in, Student& s) {
+
+    cout << "Enter Department: ";
+    in >> s.department;
+
+    cout << "Enter Semester: ";
+    in >> s.semester;
+
+    return in;
+}
+
+class Faculty : virtual public User {
+
+private:
+    string designation;
+
+public:
+
+    Faculty(string id,
+            string name,
+            string email,
+            string designation)
+
+        : User(id, name, email) {
+
+        this->designation = designation;
+    }
+
+
+    void displayRole() const override {
+        cout << "Role: Faculty" << endl;
+    }
+
+
+    void displayFaculty() const {
+
+        cout << "\n--- Faculty Details ---" << endl;
+
+        cout << "ID: " << getUserId() << endl;
+        cout << "Name: " << getName() << endl;
+        cout << "Email: " << email << endl;
+        cout << "Designation: " << designation << endl;
+    }
+};
+
+class TeachingAssistant : public Student, public Faculty {
+
+public:
+
+    TeachingAssistant(string id,
+                      string name,
+                      string email,
+                      string dept,
+                      int sem,
+                      string phone,
+                      string address)
+
+        : User(id, name, email),
+
+          Student(id, name, email, dept, sem, phone, address),
+
+          Faculty(id, name, email, "Teaching Assistant") {
+    }
+
+
+    void displayRole() const override {
+        cout << "Role: Teaching Assistant" << endl;
+    }
+};
+
+class Course {
+
+private:
+    string courseCode;
+    string courseName;
+    int credits;
+
+    vector<string> enrolledStudents;
+
+public:
+
+    Course(string code, string name, int cr) {
+
+        this->courseCode = code;
+        this->courseName = name;
+        this->credits = cr;
+    }
+
+
+    void addStudent(const Student& student) {
+
+        enrolledStudents.push_back(student.getUserId());
+
+        cout << student.getName()
+             << " enrolled in "
+             << courseName << "." << endl;
+    }
+
+
+    void addStudent(string studentId) {
+
+        enrolledStudents.push_back(studentId);
+
+        cout << "Student with ID "
+             << studentId
+             << " enrolled in "
+             << courseName << "." << endl;
+    }
+
+
+    void displayCourse() const {
+
+        cout << "\n--- Course Details ---" << endl;
+
+        cout << "Course Code: " << courseCode << endl;
+        cout << "Course Name: " << courseName << endl;
+        cout << "Credits: " << credits << endl;
+
+        cout << "Enrolled Students: ";
+
+        if (enrolledStudents.empty()) {
+            cout << "None";
+        }
+        else {
+            for (const string& id : enrolledStudents) {
+                cout << id << " ";
+            }
+        }
+
+        cout << endl;
+    }
+};
+
+class Enrollment {
+
+private:
+    string enrollmentId;
+    string studentId;
+    string courseCode;
+
+public:
+
+    Enrollment(string eid, string sid, string cid) {
+
+        this->enrollmentId = eid;
+        this->studentId = sid;
+        this->courseCode = cid;
+    }
+
+
+    void displayEnrollment() const {
+
+        cout << "\n--- Enrollment Details ---" << endl;
+
+        cout << "Enrollment ID: "
+             << enrollmentId << endl;
+
+        cout << "Student ID: "
+             << studentId << endl;
+
+        cout << "Course Code: "
+             << courseCode << endl;
+    }
+};
+
+class Fee;
+
+class Payment {
+
+private:
+    string paymentId;
+    double amount;
+    string status;
+
+public:
+
+    Payment(string id, double amt, string s) {
+
+        if (amt < 0) {
+            throw PaymentException(
+                "Payment amount cannot be negative."
+            );
+        }
+
+        if (id.empty()) {
+            throw PaymentException(
+                "Payment ID cannot be empty."
+            );
+        }
+
+        this->paymentId = id;
+        this->amount = amt;
+        this->status = s;
+    }
+
+
+    void displayPayment() const {
+
+        cout << "\n--- Payment Details ---" << endl;
+
+        cout << "Payment ID: "
+             << paymentId << endl;
+
+        cout << "Amount: Rs. "
+             << amount << endl;
+
+        cout << "Status: "
+             << status << endl;
+    }
+};
+
+class Fee {
+
+private:
+    string feeType;
+    double amount;
+
+public:
+
+    Fee(string type, double amt) {
+
+        if (amt < 0) {
+            throw PaymentException(
+                "Fee amount cannot be negative."
+            );
+        }
+
+        this->feeType = type;
+        this->amount = amt;
+    }
+
+
+    // BASIC-TO-CLASS TYPE CASTING
+
+    Fee(double amt) {
+
+        if (amt < 0) {
+            throw PaymentException(
+                "Fee amount cannot be negative."
+            );
+        }
+
+        feeType = "Miscellaneous Fee";
+        amount = amt;
+    }
+
+
+    // CLASS-TO-BASIC TYPE CASTING
+
+    operator double() const {
+        return amount;
+    }
+
+
+    // CLASS-TO-CLASS TYPE CASTING
+
+    operator Payment() const;
+
+
+    double getAmount() const {
+        return amount;
+    }
+
+
+    string getFeeType() const {
+        return feeType;
+    }
+
+
+    friend Fee operator+(const Fee& fee1, const Fee& fee2);
+
+
+    void displayFee() const {
+
+        cout << "\n--- Fee Details ---" << endl;
+
+        cout << "Fee Type: "
+             << feeType << endl;
+
+        cout << "Amount: Rs. "
+             << amount << endl;
+    }
+};
+
+
+// FRIEND FUNCTION FOR FEE
+
+Fee operator+(const Fee& fee1, const Fee& fee2) {
+
+    return Fee(
+        fee1.feeType + " + " + fee2.feeType,
+        fee1.amount + fee2.amount
+    );
+}
+
+
+// CLASS-TO-CLASS TYPE CASTING
+
+Fee::operator Payment() const {
+
+    return Payment("PAY-CONV", amount, "Pending");
+}
+
+template <typename T>
+
+void displayRecord(const string& label, const T& value) {
+
+    cout << label << value << endl;
+}
+
+template <typename T>
+
+class CampusRegistry {
+
+private:
+    vector<T> records;
+
+public:
+
+    void add(const T& record) {
+        records.push_back(record);
+    }
+
+
+    void display(const string& title) const {
+
+        cout << "\n--- " << title << " ---" << endl;
+
+        if (records.empty()) {
+
+            cout << "No records available." << endl;
+            return;
+        }
+
+        for (const T& record : records) {
+            cout << record << endl;
+        }
+    }
+
+
+    size_t size() const {
+        return records.size();
+    }
+};
+
+class Attendance {
+
+private:
+    string studentId;
+    string courseCode;
+
+    int totalClasses;
+    int attendedClasses;
+
+public:
+
+    Attendance(string sid,
+               string cid,
+               int total,
+               int attended) {
+
+        if (total < 0 || attended < 0 || attended > total) {
+
+            throw InvalidAttendanceException(
+                "Attendance values must be valid, and attended classes cannot exceed total classes."
+            );
+        }
+
+        this->studentId = sid;
+        this->courseCode = cid;
+        this->totalClasses = total;
+        this->attendedClasses = attended;
+    }
+
+
+    double calculatePercentage() const {
+
+        if (totalClasses == 0)
+            return 0;
+
+        return (double(attendedClasses) / totalClasses) * 100;
+    }
+
+
+    void displayAttendance() const {
+
+        cout << "\n--- Attendance ---" << endl;
+
+        cout << "Student ID: "
+             << studentId << endl;
+
+        cout << "Course Code: "
+             << courseCode << endl;
+
+        cout << "Total Classes: "
+             << totalClasses << endl;
+
+        cout << "Classes Attended: "
+             << attendedClasses << endl;
+
+        cout << "Attendance Percentage: "
+             << calculatePercentage()
+             << "%" << endl;
+    }
+};
+
+class Admin final {
+
+public:
+
+    void manageUsers() {
+        cout << "Admin is managing users." << endl;
+    }
+
+
+    void manageCourses() {
+        cout << "Admin is managing courses." << endl;
+    }
+};
+
+
+
+class CampusThread {
+
+private:
+    string taskName;
+
+public:
+
+    CampusThread(string name) {
+        taskName = name;
+    }
+
+
+    void run() {
+
+        for (int i = 1; i <= 3; i++) {
+
+            {
+                lock_guard<mutex> lock(outputMutex);
+
+                cout << taskName
+                     << " is executing. Step: "
+                     << i << endl;
+            }
+
+            // SLEEP METHOD
+
+            this_thread::sleep_for(
+                chrono::milliseconds(500)
+            );
+        }
+    }
+};
+
+class AttendanceTask {
+
+public:
+
+    // Function call operator
+
+    void operator()() {
+
+        for (int i = 1; i <= 3; i++) {
+
+            {
+                lock_guard<mutex> lock(outputMutex);
+
+                cout << "Attendance Task executing: "
+                     << i << endl;
+            }
+
+            this_thread::sleep_for(
+                chrono::milliseconds(500)
+            );
+        }
+    }
+};
+
+class AttendanceCounter {
+
+private:
+
+    int count = 0;
+
+    mutex mtx;
+
+public:
+
+    void markAttendance() {
+
+        // Lock the mutex
+
+        lock_guard<mutex> lock(mtx);
+
+        count++;
+    }
+
+
+    int getAttendance() {
+
+        lock_guard<mutex> lock(mtx);
+
+        return count;
+    }
+};
+
+int main() {
+
+    cout << " SMART CAMPUS MANAGEMENT SYSTEM" << endl;
+
+    cout << "\nException Handling " << endl;
+
+    {
+
+        Finally cleanup([]() {
+
+            cout << "Finally-style cleanup executed." << endl;
+
+        });
+
+
+        try {
+
+            cout << "Checking a sample student record..." << endl;
+
+            Student invalidStudent(
+                "ST999",
+                "Test Student",
+                "test@campus.edu",
+                "CSE",
+                0
+            );
+        }
+
+        catch (const InvalidStudentException& e) {
+
+            cout << "InvalidStudentException: "
+                 << e.what() << endl;
+        }
+
+        catch (const CampusException& e) {
+
+            cout << "CampusException: "
+                 << e.what() << endl;
+        }
+    }
+
+
+    try {
+
+        cout << "\nChecking attendance values..." << endl;
+
+        Attendance invalidAttendance(
+            "ST101",
+            "CS301",
+            20,
+            25
+        );
+    }
+
+    catch (const InvalidAttendanceException& e) {
+
+        cout << "Attendance error: "
+             << e.what() << endl;
+    }
+
+    catch (const CampusException& e) {
+
+        cout << "Campus error: "
+             << e.what() << endl;
+    }
+
+
+    // THROW AND RETHROW
+
+    try {
+
+        try {
+
+            throw PaymentException(
+                "Payment could not be processed."
+            );
+        }
+
+        catch (const PaymentException&) {
+
+            cout << "Payment issue caught locally; passing it to the caller."
+                 << endl;
+
+            throw;
+        }
+    }
+
+    catch (const CampusException& e) {
+
+        cout << "Base-class catch received the rethrown exception: "
+             << e.what() << endl;
+    }
+
+    Student student1(
+        "ST101",
+        "Aarav",
+        "aarav@campus.edu",
+        "CSE",
+        3,
+        "9876543210",
+        "Hostel A"
+    );
+
+
+    Student student2(
+        "ST102",
+        "Riya",
+        "riya@campus.edu",
+        "CSE",
+        3,
+        "9876543211",
+        "Hostel B"
+    );
+
+
+    Faculty faculty1(
+        "FC201",
+        "Dr. Sharma",
+        "sharma@campus.edu",
+        "Professor"
+    );
+
+
+    student1.displayStudent();
+
+    faculty1.displayFaculty();
+
+    cout << "\n--- Nested Class ---" << endl;
+
+    student1.contact.displayContact();
+
+    cout << "\n--- Static Variable and Function ---" << endl;
+
+    Student::displayTotalStudents();
+
+    cout << "\n--- Stream Operator Overloading ---" << endl;
+
+    cout << student1;
+
+    Course oopCourse(
+        "CS301",
+        "Object Oriented Programming",
+        4
+    );
+
+    oopCourse.displayCourse();
+
+    cout << "\n--- Method Overloading ---" << endl;
+
+    oopCourse.addStudent(student1);
+
+    oopCourse.addStudent("ST102");
+
+    oopCourse.displayCourse();
+
+    Enrollment enrollment1(
+        "EN001",
+        "ST101",
+        "CS301"
+    );
+
+    enrollment1.displayEnrollment();
+
+    Attendance attendance1(
+        "ST101",
+        "CS301",
+        20,
+        17
+    );
+
+    attendance1.displayAttendance();
+
+    cout << "\n Fee Operator Overloading " << endl;
+
+    Fee tuitionFee(
+        "Tuition Fee",
+        50000
+    );
+
+    Fee libraryFee(
+        "Library Fee",
+        2000
+    );
+
+    Fee totalFee = tuitionFee + libraryFee;
+
+    tuitionFee.displayFee();
+
+    libraryFee.displayFee();
+
+    cout << "\n After adding the fees:" << endl;
+
+    totalFee.displayFee();
+
+    Payment payment1(
+        "PAY001",
+        totalFee.getAmount(),
+        "Successful"
+    );
+
+    payment1.displayPayment();
+
+    cout << "\n Basic-to-Class Type Casting " << endl;
+
+    Fee miscellaneousFee = 3500.0;
+
+    miscellaneousFee.displayFee();
+
+    cout << "\n Class-to-Basic Type Casting " << endl;
+
+    double extractedFeeAmount = tuitionFee;
+
+    displayRecord(
+        "Tuition fee as a basic double: Rs. ",
+        extractedFeeAmount
+    );
+
+    cout << "\n Class-to-Class Type Casting " << endl;
+
+    Payment convertedPayment = libraryFee;
+
+    convertedPayment.displayPayment();
+
+    cout << "\n Function Template " << endl;
+
+    displayRecord("Student name: ", student1.getName());
+
+    displayRecord("Student semester: ", 3);
+
+    displayRecord(
+        "Attendance percentage: ",
+        attendance1.calculatePercentage()
+    );
+
+    cout << "\n Class Template: Campus Registry " << endl;
+
+    CampusRegistry<string> studentRegistry;
+
+    studentRegistry.add(student1.getUserId());
+
+    studentRegistry.add(student2.getUserId());
+
+    studentRegistry.display("Registered Student IDs");
+
+
+    CampusRegistry<string> courseRegistry;
+
+    courseRegistry.add("CS301");
+
+    courseRegistry.add("CS202");
+
+    courseRegistry.display("Registered Course Codes");
+
+    cout << "\n Object Slicing " << endl;
+
+    User user1 = student1;
+
+    cout << "Student object copied into User object."
+         << endl;
+
+    user1.displayUser();
+
+    cout << "\n Final Class " << endl;
+
+    Admin admin1;
+
+    admin1.manageUsers();
+
+    admin1.manageCourses();
+
+    cout << "\n This Pointer " << endl;
+
+    cout << "The this pointer is used inside constructors "
+         << "to refer to the current object." << endl;
+
+    cout << "Example: this->designation = designation"
+         << endl;
+
+    cout << "\n Pointer to Object " << endl;
+
+    Student* studentPtr = &student1;
+
+    cout << "Accessing Student using pointer:" << endl;
+
+    studentPtr->displayStudent();
+
+    cout << "\n Pointer to Derived Class " << endl;
+
+    Student* derivedPtr = &student2;
+
+    derivedPtr->displayRole();
+
+    cout << "\n Virtual Function " << endl;
+
+    User* userPtr;
+
+    userPtr = &student1;
+
+    cout << "User pointer pointing to Student:" << endl;
+
+    userPtr->displayRole();
+
+
+    userPtr = &faculty1;
+
+    cout << "\n User pointer pointing to Faculty:" << endl;
+
+    userPtr->displayRole();
+
+    cout << "\n Virtual Base Class " << endl;
+
+    TeachingAssistant ta1(
+        "TA301",
+        "Kabir",
+        "kabir@campus.edu",
+        "CSE",
+        5,
+        "9876543222",
+        "Hostel C"
+    );
+
+
+    cout << "Teaching Assistant created using "
+         << "multiple inheritance." << endl;
+
+    ta1.displayRole();
+
+
+    TeachingAssistant* taPtr = &ta1;
+
+    cout << "\n Using TeachingAssistant pointer:" << endl;
+
+    taPtr->displayRole();
+
+    cout << "\n Runtime Polymorphism " << endl;
+
+    User* basePtr = &ta1;
+
+    basePtr->displayRole();
+
+   cout << "\n Multithreading " << endl;
+
+    CampusThread task1("Student Management Thread");
+
+    // Creating a thread and executing run()
+
+    thread t1(&CampusThread::run, &task1);
+
+
+    t1.join();
+
+    cout << "\n Extending Thread Class " << endl;
+
+    CampusThread task2("Course Management Thread");
+
+    thread t2(&CampusThread::run, &task2);
+
+    t2.join();
+
+    cout << "\n Runnable Interface " << endl;
+
+    AttendanceTask attendanceTask;
+
+    thread t3(attendanceTask);
+
+    t3.join();
+
+    cout << "\n Sleep Method " << endl;
+
+    thread t4([]() {
+
+        cout << "Thread started." << endl;
+
+        this_thread::sleep_for(
+            chrono::seconds(2)
+        );
+
+        cout << "Thread resumed after 2 seconds." << endl;
+
+    });
+
+    t4.join();
+
+    cout << "\n Yield Method " << endl;
+
+    thread t5([]() {
+
+        for (int i = 1; i <= 3; i++) {
+
+            cout << "Yield Thread: "
+                 << i << endl;
+
+            this_thread::yield();
+        }
+
+    });
+
+    t5.join();
+
+    cout << "\n Thread Synchronization " << endl;
+
+    AttendanceCounter counter;
+
+    thread t6([&counter]() {
+
+        for (int i = 0; i < 1000; i++) {
+
+            counter.markAttendance();
+        }
+
+    });
+
+
+    thread t7([&counter]() {
+
+        for (int i = 0; i < 1000; i++) {
+
+            counter.markAttendance();
+        }
+
+    });
+
+    t6.join();
+
+    t7.join();
+
+
+    cout << "Total Attendance Count: "
+         << counter.getAttendance() << endl;
+
+
+    cout << "PROGRAM COMPLETED" << endl;
+
+
+    return 0;
+}
